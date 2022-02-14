@@ -18,14 +18,81 @@ package com.example.android.trackmysleepquality.sleeptracker
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.Transformations
+import androidx.lifecycle.viewModelScope
 import com.example.android.trackmysleepquality.database.SleepDatabaseDao
+import com.example.android.trackmysleepquality.database.SleepNight
+import com.example.android.trackmysleepquality.formatNights
+import kotlinx.coroutines.launch
 
 /**
  * ViewModel for SleepTrackerFragment.
  */
 class SleepTrackerViewModel(val database: SleepDatabaseDao, application: Application) : AndroidViewModel(application) {
 
+    private var currentNight = MutableLiveData<SleepNight?>()
+    private val allNights = database.getAllSleepRecord()
 
+    //transform nights into string
+    val allNightsString = Transformations.map(allNights) { night ->
+        formatNights(night, application.resources)
+    }
+
+    init {
+        initializeCurrentNight()
+    }
+
+    private fun initializeCurrentNight(){ viewModelScope.launch { currentNight.value = getCurrentNightFromDatabase() } }
+
+    private suspend fun getCurrentNightFromDatabase(): SleepNight? {
+
+        var night = database.getLatestSleepRecord()
+
+        if (night?.endTime != night?.startTime){ night = null }
+
+        return night
+
+    }
+
+    fun onStartTracking() {
+
+        viewModelScope.launch {
+            val newSleep = SleepNight()
+            insertSleep(newSleep)
+            currentNight.value = getCurrentNightFromDatabase()
+        }
+
+    }
+
+    fun onStopTracking() {
+        viewModelScope.launch {
+            val oldNight = currentNight.value ?: return@launch
+            oldNight.endTime = System.currentTimeMillis()
+            updateSleep(oldNight)
+        }
+    }
+
+    fun onClear() {
+        viewModelScope.launch {
+            clearSleep()
+            currentNight.value = null
+        }
+    }
+
+    private suspend fun insertSleep(sleep: SleepNight){
+
+        database.insertSleep(sleep)
+
+    }
+
+    private suspend fun updateSleep(night: SleepNight) {
+        database.updateSleep(night)
+    }
+
+    suspend fun clearSleep() {
+        database.clearSleepRecord()
+    }
 
 }
 
