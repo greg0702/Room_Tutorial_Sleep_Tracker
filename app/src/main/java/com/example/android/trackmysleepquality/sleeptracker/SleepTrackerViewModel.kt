@@ -90,7 +90,7 @@ class SleepTrackerViewModel(val database: SleepDatabaseDao, application: Applica
         database.updateSleep(night)
     }
 
-    suspend fun clearSleep() {
+    private suspend fun clearSleep() {
         database.clearSleepRecord()
     }
 
